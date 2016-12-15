@@ -60,7 +60,7 @@ public class FileCopier {
     }
 
     private WorkResult doCopy(CopySpecInternal copySpec, CopyAction visitor) {
-        CopyActionExecuter visitorDriver = new CopyActionExecuter(instantiator, fileLookup.getFileSystem(), false);
+        CopyActionExecuter visitorDriver = new CopyActionExecuter(instantiator, fileLookup.getFileSystem());
         return visitorDriver.execute(copySpec, visitor);
     }
 

@@ -141,11 +141,6 @@ public class TarFileTree implements MinimalFileTree, FileSystemMirroringFileTree
             return file;
         }
 
-        @Override
-        public boolean isPhysicalFile() {
-            return false;
-        }
-
         public long getLastModified() {
             return entry.getModTime().getTime();
         }

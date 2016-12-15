@@ -103,11 +103,4 @@ public interface FileTreeElement {
      * @return The Unix file permissions.
      */
     int getMode();
-
-    /**
-     * Whether the file is a regular file or directory on disk. This is false for files in zip or tar files.
-     *
-     * @return True if the file is a regular file or directory on disk.
-     */
-    boolean isPhysicalFile();
 }

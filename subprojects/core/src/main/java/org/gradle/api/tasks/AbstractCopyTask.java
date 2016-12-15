@@ -18,7 +18,6 @@ package org.gradle.api.tasks;
 import groovy.lang.Closure;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
-import org.gradle.api.Incubating;
 import org.gradle.api.Task;
 import org.gradle.api.Transformer;
 import org.gradle.api.file.CopySpec;
@@ -59,9 +58,6 @@ public abstract class AbstractCopyTask extends ConventionTask implements CopySpe
 
     private final CopySpecInternal rootSpec;
     private final CopySpecInternal mainSpec;
-
-    // FIXME wolfs: turn this off by default
-    private boolean reproducibleFileOrder = true;
 
     protected AbstractCopyTask() {
         this.rootSpec = createRootSpec();
@@ -181,7 +177,7 @@ public abstract class AbstractCopyTask extends ConventionTask implements CopySpe
         Instantiator instantiator = getInstantiator();
         FileSystem fileSystem = getFileSystem();
 
-        CopyActionExecuter copyActionExecuter = new CopyActionExecuter(instantiator, fileSystem, isReproducibleFileOrder());
+        CopyActionExecuter copyActionExecuter = new CopyActionExecuter(instantiator, fileSystem);
         CopyAction copyAction = createCopyAction();
         WorkResult didWork = copyActionExecuter.execute(rootSpec, copyAction);
         setDidWork(didWork.getDidWork());
@@ -574,27 +570,4 @@ public abstract class AbstractCopyTask extends ConventionTask implements CopySpe
     public void setFilteringCharset(String charset) {
         getMainSpec().setFilteringCharset(charset);
     }
-
-    /**
-     * If files are copied in a reproducible order.
-     *
-     * @return whether the files should be copied to the destination in a reproducible order.
-     */
-    @Input
-    @Incubating
-    public boolean isReproducibleFileOrder() {
-        return reproducibleFileOrder;
-    }
-
-    /**
-     * Specifies if the files should be copied to the destination in a reproducible order.
-     * This makes mostly sense where the destination remember the order, for example if it is a zip or tar file.
-     *
-     * @param reproducibleFileOrder if the order should be reproducible
-     */
-    @Incubating
-    public void setReproducibleFileOrder(boolean reproducibleFileOrder) {
-        this.reproducibleFileOrder = reproducibleFileOrder;
-    }
-
 }

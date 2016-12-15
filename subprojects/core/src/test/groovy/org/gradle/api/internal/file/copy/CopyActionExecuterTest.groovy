@@ -56,7 +56,7 @@ class CopyActionExecuterTest extends WorkspaceTest {
                 new SimpleWorkResult(workResult)
             }
         }
-        def executer = new CopyActionExecuter(DirectInstantiator.INSTANCE, TestFiles.fileSystem(), false)
+        def executer = new CopyActionExecuter(DirectInstantiator.INSTANCE, TestFiles.fileSystem())
 
         when:
         executer.execute(copySpec, copyAction)
