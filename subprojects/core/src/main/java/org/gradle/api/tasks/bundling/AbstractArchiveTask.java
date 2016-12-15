@@ -17,8 +17,10 @@ package org.gradle.api.tasks.bundling;
 
 import groovy.lang.Closure;
 import org.gradle.api.Action;
+import org.gradle.api.Incubating;
 import org.gradle.api.file.CopySpec;
 import org.gradle.api.tasks.AbstractCopyTask;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.util.GUtil;
@@ -36,6 +38,7 @@ public abstract class AbstractArchiveTask extends AbstractCopyTask {
     private String version;
     private String extension;
     private String classifier = "";
+    private boolean fixedTimestamps;
 
     /**
      * Returns the archive name. If the name has not been explicitly set, the pattern for the name is:
@@ -207,5 +210,27 @@ public abstract class AbstractArchiveTask extends AbstractCopyTask {
     public CopySpec into(Object destPath, Action<? super CopySpec> copySpec) {
         super.into(destPath, copySpec);
         return this;
+    }
+
+    /**
+     * Returns whether fixed timestamps should be used for archive entries
+     *
+     * @return wether fixed timestamps should be used for archive entries
+     */
+    @Input
+    @Incubating
+    public boolean isFixedTimestamps() {
+        return fixedTimestamps;
+    }
+
+    /**
+     * Configures if fixed timestamps should be used in the archive.
+     * This ensures that archive entries have the same time for builds between different machines, Java versions and operating systems.
+     *
+     * @param fixedTimestamps
+     */
+    @Incubating
+    public void setFixedTimestamps(boolean fixedTimestamps) {
+        this.fixedTimestamps = fixedTimestamps;
     }
 }

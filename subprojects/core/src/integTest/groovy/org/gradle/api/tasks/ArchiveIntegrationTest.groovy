@@ -23,10 +23,11 @@ import org.gradle.test.fixtures.file.TestFile
 import org.hamcrest.Matchers
 import org.junit.Rule
 import spock.lang.Issue
+import spock.lang.Unroll
 
 import static org.hamcrest.Matchers.equalTo
 
-public class ArchiveIntegrationTest extends AbstractIntegrationSpec {
+class ArchiveIntegrationTest extends AbstractIntegrationSpec {
 
     def canCopyFromAZip() {
         given:
@@ -92,6 +93,61 @@ public class ArchiveIntegrationTest extends AbstractIntegrationSpec {
         run 'copy'
         then:
         file('dest').assertHasDescendants('subdir1/file1.txt', 'subdir2/file2.txt')
+    }
+
+    def "can use fixed timestamps"() {
+        given:
+        createDir('test') {
+            file 'file1.txt'
+        }
+        and:
+        buildFile << '''
+            task tar(type: Tar) {
+                fixedTimestamps = true
+                from 'test'
+                include '**/*.txt'
+                destinationDir = buildDir
+                archiveName = 'test.tar'
+            }
+'''
+        when:
+        run 'tar'
+        then:
+        file('build/test.tar').md5Hash == 'f2d39f1058de40bc0bfd9ee875fa2c5b'
+    }
+
+    @Unroll
+    def "order of files #files for tar is not important for reproducible file order"() {
+        given:
+        createDir('dir1') {
+            file('file1.txt').text = 'file1'
+        }
+        createDir('dir2') {
+            file('file3.txt').text = 'file2'
+        }
+        createDir('dir3') {
+            file('file3.txt').text = 'file3'
+        }
+
+        buildFile << """
+            task tar(type: Tar) {
+                fixedTimestamps = true     
+                reproducibleFileOrder = true
+                from files(${files.collect { "'${it}'" }.join(',')})
+                destinationDir = buildDir
+                archiveName = 'test.tar'
+            }
+        """.stripIndent()
+
+        when:
+        run 'tar'
+
+        then:
+        file('build/test.tar').md5Hash == 'f03e910d1711b5cc279c04f8f13b2816'
+
+        where:
+        files << ['dir1/file1.txt', 'dir2/file2.txt', 'dir3/file3.txt'].permutations()
+
     }
 
     def "handles gzip compressed tars"() {
@@ -340,11 +396,11 @@ public class ArchiveIntegrationTest extends AbstractIntegrationSpec {
         def expandDir = file('expanded')
         file('build/test.zip').unzipTo(expandDir)
         expandDir.assertHasDescendants(
-                'prefix/dir1/renamed_file1.txt',
-                'prefix/renamed_file1.txt',
-                'prefix/dir2/renamed_file2.txt',
-                'scripts/dir2/script.sh',
-                'conf/dir2/config.properties')
+            'prefix/dir1/renamed_file1.txt',
+            'prefix/renamed_file1.txt',
+            'prefix/dir2/renamed_file2.txt',
+            'scripts/dir2/script.sh',
+            'conf/dir2/config.properties')
 
         expandDir.file('prefix/dir1/renamed_file1.txt').assertContents(equalTo('[abc]'))
     }
@@ -404,20 +460,20 @@ public class ArchiveIntegrationTest extends AbstractIntegrationSpec {
         def expandDir = file('expandedUncompressed')
         file('build/uncompressedTest.zip').unzipTo(expandDir)
         expandDir.assertHasDescendants(
-                'prefix/dir1/file1.txt',
-                'prefix/file1.txt',
-                'prefix/dir2/file2.txt',
-                'scripts/dir2/script.sh')
+            'prefix/dir1/file1.txt',
+            'prefix/file1.txt',
+            'prefix/dir2/file2.txt',
+            'scripts/dir2/script.sh')
 
         expandDir.file('prefix/dir1/file1.txt').assertContents(equalTo(randomAscii))
 
         def expandCompressedDir = file('expandedCompressed')
         file('build/compressedTest.zip').unzipTo(expandCompressedDir)
         expandCompressedDir.assertHasDescendants(
-                'prefix/dir1/file1.txt',
-                'prefix/file1.txt',
-                'prefix/dir2/file2.txt',
-                'scripts/dir2/script.sh')
+            'prefix/dir1/file1.txt',
+            'prefix/file1.txt',
+            'prefix/dir2/file2.txt',
+            'scripts/dir2/script.sh')
 
         expandCompressedDir.file('prefix/dir1/file1.txt').assertContents(equalTo(randomAscii))
     }
@@ -557,7 +613,7 @@ public class ArchiveIntegrationTest extends AbstractIntegrationSpec {
         run 'copy', 'zip'
         then:
         file('build/exploded').assertHasDescendants(
-                'lib/file1.txt', 'src/dir3/file2.txt'
+            'lib/file1.txt', 'src/dir3/file2.txt'
         )
         def expandDir = file('expanded')
         file('build/test.zip').unzipTo(expandDir)
@@ -598,10 +654,10 @@ public class ArchiveIntegrationTest extends AbstractIntegrationSpec {
         run 'explodedZip', 'copyFromRootSpec'
         then:
         file('build/exploded').assertHasDescendants(
-                'prefix/dir1/file1.txt', 'prefix/dir2/dir3/file2.txt'
+            'prefix/dir1/file1.txt', 'prefix/dir2/dir3/file2.txt'
         )
         file('build/copy').assertHasDescendants(
-                'prefix/dir1/file1.txt', 'prefix/dir2/dir3/file2.txt'
+            'prefix/dir1/file1.txt', 'prefix/dir2/dir3/file2.txt'
         )
     }
 
@@ -652,7 +708,7 @@ public class ArchiveIntegrationTest extends AbstractIntegrationSpec {
 
     def ensureDuplicatesIncludedInTarByDefault() {
         given:
-        createFilesStructureForDupeTests();
+        createFilesStructureForDupeTests()
         buildFile << '''
             task tar(type: Tar) {
                 from 'dir1'
