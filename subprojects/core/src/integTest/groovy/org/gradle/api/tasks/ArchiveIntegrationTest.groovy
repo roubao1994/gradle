@@ -132,7 +132,6 @@ class ArchiveIntegrationTest extends AbstractIntegrationSpec {
         buildFile << """
             task tar(type: Tar) {
                 fixedTimestamps = true     
-                reproducibleFileOrder = true
                 from files(${files.collect { "'${it}'" }.join(',')})
                 destinationDir = buildDir
                 archiveName = 'test.tar'
