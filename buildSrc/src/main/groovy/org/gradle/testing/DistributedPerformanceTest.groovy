@@ -161,7 +161,7 @@ class DistributedPerformanceTest extends PerformanceTest {
                 new Scenario(id : parts[0], estimatedRuntime: new BigDecimal(parts[1]), templates: parts.subList(2, parts.size()))
             }
             .sort{ -it.estimatedRuntime }
-            .takeRight(10)
+//            .takeRight(10)
 
         createClient()
 
@@ -313,7 +313,7 @@ class DistributedPerformanceTest extends PerformanceTest {
                 def skipped = testCase.skipped
                 def failure = testCase.failure
 
-                if (failure) {
+                if (failure.size() > 0) {
                     source.beforeTest(testCaseDescriptor)
                     try {
 //                def systemOut = testResult."system-out".text()
@@ -323,8 +323,8 @@ class DistributedPerformanceTest extends PerformanceTest {
                     } catch (Exception e) {
                         e.printStackTrace()
                     }
-                    source.afterTest(testCaseDescriptor, new DefaultTestResult(TestResult.ResultType.FAILURE, 0, 0, 1, 0, 1, []))
-                } else if (!skipped) {
+                    source.afterTest(testCaseDescriptor, new DefaultTestResult(TestResult.ResultType.FAILURE, 0, 0, 1, 0, 1, [new AssertionError(failure.text())]))
+                } else if (!(skipped.size() > 0)) {
                     source.beforeTest(testCaseDescriptor)
                     source.afterTest(testCaseDescriptor, new DefaultTestResult(TestResult.ResultType.SUCCESS, 0, 0, 1, 1, 0, []))
                 }
