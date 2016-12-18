@@ -42,6 +42,7 @@ import org.gradle.api.tasks.testing.TestResult
 import org.gradle.internal.IoActions
 import org.gradle.internal.event.ListenerBroadcast
 
+import javax.xml.datatype.DatatypeFactory
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipInputStream
 
@@ -287,13 +288,11 @@ class DistributedPerformanceTest extends PerformanceTest {
         }
     }
 
-    public static int id = 0
-
     @TypeChecked(TypeCheckingMode.SKIP)
     private void fireTestListener(List<File> results) {
         def xmlFiles = results.findAll { it.name.endsWith('.xml') }
-        def rootSuite = new DefaultTestSuiteDescriptor(DistributedPerformanceTest.id++, "rootSuite" + DistributedPerformanceTest.id)
-        def workerSuite = new DecoratingTestDescriptor(new DefaultTestSuiteDescriptor(DistributedPerformanceTest.id++, "workerSuite" + DistributedPerformanceTest.id), rootSuite)
+        def rootSuite = new DefaultTestSuiteDescriptor(0, "rootSuite")
+        def workerSuite = new DecoratingTestDescriptor(new DefaultTestSuiteDescriptor(0, "workerSuite"), rootSuite)
         def testListener = myTestListenerBroadcaster.getSource()
         testListener.beforeSuite(rootSuite)
         testListener.beforeSuite(workerSuite)
@@ -301,17 +300,19 @@ class DistributedPerformanceTest extends PerformanceTest {
             def testResult = new XmlSlurper().parse(it)
             def suiteName = testResult.@name.text()
             println "suiteName: ${suiteName}"
-            def testSuiteDescriptor = new DecoratingTestDescriptor(new DefaultTestClassDescriptor(DistributedPerformanceTest.id++, suiteName), workerSuite)
+            def testSuiteDescriptor = new DecoratingTestDescriptor(new DefaultTestClassDescriptor(0, suiteName), workerSuite)
             testListener.beforeSuite(testSuiteDescriptor)
+            long startTime = DatatypeFactory.newInstance().newXMLGregorianCalendar(testResult.@timestamp.text()).toGregorianCalendar().getTimeInMillis()
             testResult.testcase.each { testCase ->
                 def testCaseClassName = testCase.@classname.text()
                 def testMethodName = testCase.@name.text()
                 println "testCaseClassName: ${testCaseClassName}"
                 println "testMethodName: ${testMethodName}"
-                def testCaseDescriptor =  new DecoratingTestDescriptor(new DefaultTestMethodDescriptor(DistributedPerformanceTest.id++, testCaseClassName, testMethodName), testSuiteDescriptor)
+                def testCaseDescriptor =  new DecoratingTestDescriptor(new DefaultTestMethodDescriptor(0, testCaseClassName, testMethodName), testSuiteDescriptor)
                 def source = testListener
                 def skipped = testCase.skipped
                 def failure = testCase.failure
+                def endTime = startTime + (testCase.@time.toDouble() * 1000).round()
 
                 if (failure.size() > 0) {
                     source.beforeTest(testCaseDescriptor)
@@ -323,10 +324,10 @@ class DistributedPerformanceTest extends PerformanceTest {
                     } catch (Exception e) {
                         e.printStackTrace()
                     }
-                    source.afterTest(testCaseDescriptor, new DefaultTestResult(TestResult.ResultType.FAILURE, 0, 0, 1, 0, 1, [new AssertionError(failure.text())]))
+                    source.afterTest(testCaseDescriptor, new DefaultTestResult(TestResult.ResultType.FAILURE, startTime, endTime , 1, 0, 1, [new AssertionError(failure.text())]))
                 } else if (!(skipped.size() > 0)) {
                     source.beforeTest(testCaseDescriptor)
-                    source.afterTest(testCaseDescriptor, new DefaultTestResult(TestResult.ResultType.SUCCESS, 0, 0, 1, 1, 0, []))
+                    source.afterTest(testCaseDescriptor, new DefaultTestResult(TestResult.ResultType.SUCCESS, startTime, endTime, 1, 1, 0, []))
                 }
             }
             testListener.afterSuite(testSuiteDescriptor, new DefaultTestResult(TestResult.ResultType.SUCCESS, 0, 0, 0, 0, 0, []))
