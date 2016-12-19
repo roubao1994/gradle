@@ -25,24 +25,14 @@ import groovy.xml.XmlUtil
 import groovyx.net.http.ContentType
 import groovyx.net.http.RESTClient
 import org.gradle.api.GradleException
-import org.gradle.api.internal.tasks.testing.DecoratingTestDescriptor
-import org.gradle.api.internal.tasks.testing.DefaultTestClassDescriptor
-import org.gradle.api.internal.tasks.testing.DefaultTestMethodDescriptor
-import org.gradle.api.internal.tasks.testing.DefaultTestOutputEvent
-import org.gradle.api.internal.tasks.testing.DefaultTestSuiteDescriptor
-import org.gradle.api.internal.tasks.testing.results.DefaultTestResult
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.testing.TestListener
-import org.gradle.api.tasks.testing.TestOutputEvent
 import org.gradle.api.tasks.testing.TestOutputListener
-import org.gradle.api.tasks.testing.TestResult
 import org.gradle.internal.IoActions
-import org.gradle.internal.event.ListenerBroadcast
 
-import javax.xml.datatype.DatatypeFactory
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipInputStream
 
@@ -93,28 +83,20 @@ class DistributedPerformanceTest extends PerformanceTest {
     Map<String, List<File>> testResultFilesForBuild = [:]
     private File workerTestResultsTempDir
 
-    private List<TestListener> myTestListeners = []
-    private List<TestOutputListener> myTestOutputListeners = []
-    ListenerBroadcast<TestListener> myTestListenerBroadcaster
-    ListenerBroadcast<TestOutputListener> myTestOutputListenerBroadcaster
+    private final JUnitXmlTestEventsGenerator testEventsGenerator
 
     DistributedPerformanceTest() {
-        myTestListenerBroadcaster = listenerManager.createAnonymousBroadcaster(TestListener.class)
-        myTestOutputListenerBroadcaster = listenerManager.createAnonymousBroadcaster(TestOutputListener.class)
+        this.testEventsGenerator = new JUnitXmlTestEventsGenerator(listenerManager.createAnonymousBroadcaster(TestListener.class), listenerManager.createAnonymousBroadcaster(TestOutputListener.class))
     }
 
     @Override
     void addTestListener(TestListener listener) {
-        if (!listener.getClass().getName().startsWith('org.gradle.api.internal')) {
-            myTestListeners.add(listener)
-        }
+        testEventsGenerator.addTestListener(listener)
     }
 
     @Override
     void addTestOutputListener(TestOutputListener listener) {
-        if (!listener.getClass().getName().startsWith('org.gradle.api.internal')) {
-            myTestOutputListeners.add(listener)
-        }
+        testEventsGenerator.addTestOutputListener(listener)
     }
 
     void setScenarioList(File scenarioList) {
@@ -128,17 +110,9 @@ class DistributedPerformanceTest extends PerformanceTest {
         try {
             doExecuteTests()
         } finally {
-            releaseListeners()
+            testEventsGenerator.release()
             cleanTempFiles()
         }
-    }
-
-    @TypeChecked(TypeCheckingMode.SKIP)
-    private void releaseListeners() {
-        myTestOutputListeners.clear()
-        myTestListeners.clear()
-        myTestListenerBroadcaster.removeAll()
-        myTestOutputListenerBroadcaster.removeAll()
     }
 
     private void createWorkerTestResultsTempDir() {
@@ -171,8 +145,6 @@ class DistributedPerformanceTest extends PerformanceTest {
             schedule(it, lastChangeId)
         }
 
-        reAddListeners()
-
         scheduledBuilds.each {
             join(it)
         }
@@ -180,12 +152,6 @@ class DistributedPerformanceTest extends PerformanceTest {
         writeScenarioReport()
 
         checkForErrors()
-    }
-
-    @TypeChecked(TypeCheckingMode.SKIP)
-    private void reAddListeners() {
-        myTestListenerBroadcaster.addAll(myTestListeners)
-        myTestOutputListenerBroadcaster.addAll(myTestOutputListeners)
     }
 
     private void fillScenarioList() {
@@ -288,52 +254,11 @@ class DistributedPerformanceTest extends PerformanceTest {
         }
     }
 
-    @TypeChecked(TypeCheckingMode.SKIP)
     private void fireTestListener(List<File> results) {
         def xmlFiles = results.findAll { it.name.endsWith('.xml') }
-        def rootSuite = new DefaultTestSuiteDescriptor(0, "rootSuite")
-        def workerSuite = new DecoratingTestDescriptor(new DefaultTestSuiteDescriptor(0, "workerSuite"), rootSuite)
-        def testListener = myTestListenerBroadcaster.getSource()
-        testListener.beforeSuite(rootSuite)
-        testListener.beforeSuite(workerSuite)
         xmlFiles.each {
-            def testResult = new XmlSlurper().parse(it)
-            def suiteName = testResult.@name.text()
-            println "suiteName: ${suiteName}"
-            def testSuiteDescriptor = new DecoratingTestDescriptor(new DefaultTestClassDescriptor(0, suiteName), workerSuite)
-            testListener.beforeSuite(testSuiteDescriptor)
-            long startTime = DatatypeFactory.newInstance().newXMLGregorianCalendar(testResult.@timestamp.text()).toGregorianCalendar().getTimeInMillis()
-            testResult.testcase.each { testCase ->
-                def testCaseClassName = testCase.@classname.text()
-                def testMethodName = testCase.@name.text()
-                println "testCaseClassName: ${testCaseClassName}"
-                println "testMethodName: ${testMethodName}"
-                def testCaseDescriptor =  new DecoratingTestDescriptor(new DefaultTestMethodDescriptor(0, testCaseClassName, testMethodName), testSuiteDescriptor)
-                def source = testListener
-                def skipped = testCase.skipped
-                def failure = testCase.failure
-                def endTime = startTime + (testCase.@time.toDouble() * 1000).round()
-
-                if (failure.size() > 0) {
-                    source.beforeTest(testCaseDescriptor)
-                    try {
-//                def systemOut = testResult."system-out".text()
-//                myTestOutputListenerBroadcaster.getSource().onOutput(testSuiteDescriptor, new DefaultTestOutputEvent(TestOutputEvent.Destination.StdOut, systemOut))
-                        def systemErr = testResult."system-err".text()
-                        myTestOutputListenerBroadcaster.getSource().onOutput(testCaseDescriptor, new DefaultTestOutputEvent(TestOutputEvent.Destination.StdErr, systemErr))
-                    } catch (Exception e) {
-                        e.printStackTrace()
-                    }
-                    source.afterTest(testCaseDescriptor, new DefaultTestResult(TestResult.ResultType.FAILURE, startTime, endTime , 1, 0, 1, [new AssertionError(failure.text())]))
-                } else if (!(skipped.size() > 0)) {
-                    source.beforeTest(testCaseDescriptor)
-                    source.afterTest(testCaseDescriptor, new DefaultTestResult(TestResult.ResultType.SUCCESS, startTime, endTime, 1, 1, 0, []))
-                }
-            }
-            testListener.afterSuite(testSuiteDescriptor, new DefaultTestResult(TestResult.ResultType.SUCCESS, 0, 0, 0, 0, 0, []))
+            testEventsGenerator.processXmlFile(it)
         }
-        testListener.afterSuite(workerSuite, new DefaultTestResult(TestResult.ResultType.SUCCESS, 0, 0, 0, 0, 0, []))
-        testListener.afterSuite(rootSuite, new DefaultTestResult(TestResult.ResultType.SUCCESS, 0, 0, 0, 0, 0, []))
     }
 
     @TypeChecked(TypeCheckingMode.SKIP)
