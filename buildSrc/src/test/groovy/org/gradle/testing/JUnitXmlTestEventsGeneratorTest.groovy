@@ -60,9 +60,10 @@ class JUnitXmlTestEventsGeneratorTest extends Specification {
         TestOutputListener testOutputListener = Mock()
         TestDescriptorInternal testDescriptor = null
         TestResult testResult = null
+        Object build = new XmlSlurper().parseText("""<build webUrl="http://some.url" />""")
 
         when:
-        new JUnitXmlTestEventsGenerator(testListenerBroadcast, testOutputListenerBroadcast).processXml(gpath)
+        new JUnitXmlTestEventsGenerator(testListenerBroadcast, testOutputListenerBroadcast).processXml(gpath, build)
 
         then:
         _ * testListenerBroadcast.getSource() >> testListener

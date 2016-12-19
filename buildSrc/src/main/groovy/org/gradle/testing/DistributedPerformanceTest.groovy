@@ -248,16 +248,16 @@ class DistributedPerformanceTest extends PerformanceTest {
         try {
             def results = fetchTestResults(jobId, response.data)
             testResultFilesForBuild.put(jobId, results)
-            fireTestListener(results)
+            fireTestListener(results, response.data)
         } catch (e) {
             e.printStackTrace(System.err)
         }
     }
 
-    private void fireTestListener(List<File> results) {
+    private void fireTestListener(List<File> results, Object build) {
         def xmlFiles = results.findAll { it.name.endsWith('.xml') }
         xmlFiles.each {
-            testEventsGenerator.processXmlFile(it)
+            testEventsGenerator.processXmlFile(it, build)
         }
     }
 

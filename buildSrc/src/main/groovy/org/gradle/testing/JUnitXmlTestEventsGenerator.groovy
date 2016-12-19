@@ -41,13 +41,12 @@ class JUnitXmlTestEventsGenerator {
         this.testListenerBroadcast = testListenerBroadcast
     }
 
-    void processXmlFile(File resultsFile) {
-        processXml(new XmlSlurper().parse(resultsFile))
+    void processXmlFile(File resultsFile, Object build) {
+        processXml(new XmlSlurper().parse(resultsFile), build)
     }
 
-    void processXml(GPathResult testResult) {
+    void processXml(GPathResult testResult, Object build) {
         String suiteName = testResult.@name.text()
-        println "suiteName: ${suiteName}"
         def testSuiteDescriptor = new DecoratingTestDescriptor(new DefaultTestClassDescriptor(0, suiteName), createWorkerSuite())
         testListener.beforeSuite(testSuiteDescriptor.parent.parent)
         testListener.beforeSuite(testSuiteDescriptor.parent)
@@ -57,8 +56,6 @@ class JUnitXmlTestEventsGenerator {
         testResult.testcase.each { testCase ->
             String testCaseClassName = testCase.@classname.text()
             String testMethodName = testCase.@name.text()
-            println "testCaseClassName: ${testCaseClassName}"
-            println "testMethodName: ${testMethodName}"
             def testCaseDescriptor = new DecoratingTestDescriptor(new DefaultTestMethodDescriptor(0, testCaseClassName, testMethodName), testSuiteDescriptor)
             def skipped = testCase.skipped
             def failure = testCase.failure
@@ -66,6 +63,7 @@ class JUnitXmlTestEventsGenerator {
 
             if (failure.size() > 0) {
                 testListener.beforeTest(testCaseDescriptor)
+                publishBuildUrl(testCaseDescriptor, build)
                 try {
                     String systemErr = testResult."system-err".text()
                     if (systemErr) {
@@ -79,12 +77,20 @@ class JUnitXmlTestEventsGenerator {
                 testListener.afterTest(testCaseDescriptor, new DefaultTestResult(TestResult.ResultType.FAILURE, startTime, endTime, 1, 0, 1, [new AssertionError(failureText)]))
             } else if (!(skipped.size() > 0)) {
                 testListener.beforeTest(testCaseDescriptor)
+                publishBuildUrl(testCaseDescriptor, build)
                 testListener.afterTest(testCaseDescriptor, new DefaultTestResult(TestResult.ResultType.SUCCESS, startTime, endTime, 1, 1, 0, []))
             }
         }
         testListener.afterSuite(testSuiteDescriptor, new DefaultTestResult(TestResult.ResultType.SUCCESS, 0, 0, 0, 0, 0, []))
         testListener.afterSuite(testSuiteDescriptor.parent, new DefaultTestResult(TestResult.ResultType.SUCCESS, 0, 0, 0, 0, 0, []))
         testListener.afterSuite(testSuiteDescriptor.parent.parent, new DefaultTestResult(TestResult.ResultType.SUCCESS, 0, 0, 0, 0, 0, []))
+    }
+
+    private void publishBuildUrl(DecoratingTestDescriptor testCaseDescriptor, Object build) {
+        def buildUrl = build.@webUrl
+        if (buildUrl) {
+            testOutputListener.onOutput(testCaseDescriptor, new DefaultTestOutputEvent(TestOutputEvent.Destination.StdOut, "Worker build url: ${buildUrl}"))
+        }
     }
 
     void addTestListener(TestListener listener) {
