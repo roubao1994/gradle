@@ -75,6 +75,7 @@ class JUnitXmlTestEventsGenerator {
                     e.printStackTrace()
                 }
                 String failureText = failure.text()
+                failureText = failureText.replace("java.lang.AssertionError: ", "")
                 testListener.afterTest(testCaseDescriptor, new DefaultTestResult(TestResult.ResultType.FAILURE, startTime, endTime, 1, 0, 1, [new AssertionError(failureText)]))
             } else if (!(skipped.size() > 0)) {
                 testListener.beforeTest(testCaseDescriptor)
